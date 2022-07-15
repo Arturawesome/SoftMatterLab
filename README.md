@@ -10,5 +10,6 @@ GPU: Nvidia GeForce GTX Titan X (3072 CUDA cores)
 
 ---
 
-All programms for pair correlation function in liquid analysis. Thise private rep include CUDA pcf prog (the last verion).
+All programms for soft matter labs in BMSTU
+
 
