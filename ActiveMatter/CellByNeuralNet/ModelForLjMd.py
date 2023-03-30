@@ -139,8 +139,6 @@ class NnLennardJonesIneraction(nn.Module):
 
         return pred
 
-
-
 class MD:
 
     def __init__(self,
@@ -232,10 +230,50 @@ class MD:
         #    print(" ")
 
 
+    # Nose-hoover Chain Algorithm 31 (page 474-475) from Frenkel & Smit's book:
+    def nhchain(Q, dt, dt_2, dt_4, dt_8, nparticles, vxi, xi, ke, vel):
+        G2 = (Q[0]*vxi[0]*vxi[0]-T)
+        vxi[1] += G2*dt_4   # eq 2.6
+        vxi[0] *= math.exp(-vxi[1]*dt_8)    # eq 2.7
+
+        G1 = (2*ke-3*nparticles*T)/Q[0]
+
+        vxi[0] += G1*dt_4   # eq 2.8
+        vxi[0] *= math.exp(-vxi[1]*dt_8)    # eq 2.7
+
+        xi[0]+=vxi[0]*dt_2  # eq 2.9
+        xi[1]+=vxi[1]*dt_2  # eq 2.10
+
+        s=math.exp(-vxi[0]*dt_2)    # eq 2.11
+        vel=np.multiply(s,vel)  # eq 2.11
+        ke*=(s*s)   # kinetik enegy
+
+        vxi[0]*=math.exp(-vxi[1]*dt_8)  # eq 2.7
+
+        G1=(2*ke-3*nparticles*T)/Q[0]
+
+        vxi[0]+=G1*dt_4 # eq 2.8
+        vxi[0]*=math.exp(-vxi[1]*dt_8)  # eq 2.7
+
+        G2=(Q[0]*vxi[0]*vxi[0]-T)/Q[1]
+
+        vxi[1]+=G2*dt_4 # eq 2.6
+
+        return ke
 
     def run_nvt(self):
         for ts in range(self.num_tp):
             print("ts = " + str(ts) + "; ")
+            '''
+            ke by nhchain
+            position
+            udate potential and force
+            Second-half of Nose-Hoover Chain Algorithm.
+            ke by mv**2 /2
+            ke by nhchain
+        dump
+        `
+            '''
             #ke= nhchain(Q, dt, dt_2, dt_4, dt_8, nparticles, vxi, xi, ke, vel)
 
     def update_position(self, vx, vy, d_t, periodic_bond):
