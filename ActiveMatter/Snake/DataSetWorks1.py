@@ -71,7 +71,7 @@ class LammpsCoords:
             return self.box, self.n_part
         else:
             d = np.array([[float(item) for item in self.f.readline().strip().split(' ')[0:len(self.str_content)]] for i in range(self.n_part)])
-            return [self.n_part, self.box, self.box, d[:, self.req_ind_data]]
+            return [self.n_part, self.box, d[:, self.req_ind_data]]
 
     def CloseFile(self):
         self.f.close()
@@ -93,7 +93,7 @@ class LammpsCoords:
         self.f.readline()                                                                               # ITEM: ATOMS id ...
         data = np.array([[float(item) for item in self.f.readline().strip().split(' ')[0:len(self.str_content)]] for i in range(self.n_part)])
 
-        return  [self.n_part, self.box, self.box, data[:, self.req_ind_data]]
+        return  [self.n_part, self.box, data[:, self.req_ind_data]]
 
 
 'id tyope x y vx vy'
