@@ -71,6 +71,17 @@ class LammpsCoords:
             return self.box, self.n_part
         else:
             d = np.array([[float(item) for item in self.f.readline().strip().split(' ')[0:len(self.str_content)]] for i in range(self.n_part)])
+
+            for i in range(len(self.str_content)):
+                axis = self.str_content[i]
+                if axis == "x":
+                    d[:, i] += abs(self.box[0][0])
+                elif axis == "y":
+                    d[:, i] += abs(self.box[1][0])
+                if axis == "z":
+                    d[:, i] += abs(self.box[2][0])
+                else:
+                    continue
             return [self.n_part, self.box, d[:, self.req_ind_data]]
 
     def CloseFile(self):
@@ -92,6 +103,17 @@ class LammpsCoords:
             self.box[i][1] = xyz_box[1]
         self.f.readline()                                                                               # ITEM: ATOMS id ...
         data = np.array([[float(item) for item in self.f.readline().strip().split(' ')[0:len(self.str_content)]] for i in range(self.n_part)])
+
+        for i in range(len(self.str_content)):
+            axis = self.str_content[i]
+            if axis == "x":
+                data[:, i] += abs(self.box[0][0])
+            elif axis == "y":
+                data[:, i] += abs(self.box[1][0])
+            if axis == "z":
+                data[:, i] += abs(self.box[2][0])
+            else:
+                continue
 
         return  [self.n_part, self.box, data[:, self.req_ind_data]]
 

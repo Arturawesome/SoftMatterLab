@@ -3,7 +3,7 @@ import DataSetWorks1
 from DataSetWorks1 import LammpsCoords
 
 import StructuralAnalysis
-from StructuralAnalysis import Structur
+from StructuralAnalysis import SyatemStructur
 import scipy as scipy
 from scipy import spatial
 
@@ -29,16 +29,18 @@ import decimal
 
 
 
-class Snake(Structur):
+class Snake(SyatemStructur):
     def __init__(self,
                  heights: list,
                  mu_values: list,
                  Temperature: float,
                  percent: float,
                  density: list,
+                 list_psi: list,
                  istart: int,
                  all_cadr: int,
                  num_cadr: int,
+
                  path_md: str,
                  img_path: str,
                  prefix:str
@@ -48,11 +50,14 @@ class Snake(Structur):
         self.img_path = img_path
         self.path_md = path_md
         self.prefix = prefix
+        self.list_psi = list_psi
 
         # all nympy variables
         self.heights = np.array(heights, dtype=float)
         self.mu_values = np.array(mu_values,  dtype=float)
         self.density = np.array(density, dtype = float)
+        self.z_distance = []
+        self.r_mas = []
         self.st = None
         self.dat_xyz = None     # np.array after Add_Points() dat_xyz[:, 0] - MD id particle, dat_xyz[:, 1:4] - xyz position
         self.dat_xyz_init = None # np.array dat_xyz[:, 0] - MD id particle, dat_xyz[:, 1:4] - xyz position
@@ -90,6 +95,7 @@ class Snake(Structur):
         self.r_snake =  0.8
 
         # Structure variables
+        self.psi = None
         self.psi3 = None
         self.psi4 = None
         self.psi5 = None
@@ -104,6 +110,7 @@ class Snake(Structur):
         npoints = len(self.vor.points)
         ver_index = np.full(len(self.vor.vertices),False)
         self.neigh_id = [[] for i in range(self.nparts_init)]
+        self.r_ij = [[] for _ in range(self.nparts_init)]
         #self.dat_id_part_inside_init = np.zeros(self.nparts_init)
 
         #----------------------------------
@@ -143,34 +150,48 @@ class Snake(Structur):
             if self.region_mask[self.vor.point_region[rid[0]]] + self.region_mask[self.vor.point_region[rid[1]]] == True:
                 if rid1 not in self.neigh_id[rid0]:  # condition to avoid repetition
                     self.neigh_id[rid0].append(rid1)
+
+                    x0 = self.dat_xyz_init[rid0, 1]
+                    y0 = self.dat_xyz_init[rid0, 2]
+                    z0 = self.dat_xyz_init[rid0, 3]
+                    x1 = self.dat_xyz_init[rid1, 1]
+                    y1 = self.dat_xyz_init[rid1, 2]
+                    z1 = self.dat_xyz_init[rid1, 3]
+
+                    x1, y1 = self.Consideration_Periodic_Boundary_Distance(x0, y0, x1, y1)
+                    self.r_ij[rid0].append([(x1 - x0), (y1 - y0), abs(z1 - z0)])
+
                 if rid0 not in self.neigh_id[rid1]:
                     self.neigh_id[rid1].append(rid0)
 
-        self.r_ij = [[] for _ in range(self.nparts_init)]
-        for jj in range(self.nparts_init):
-            x0y0 = self.dat_xyz_init[jj, 1:3]
-            id_part = int(self.dat_xyz_init[jj, 0])
-            adjacents = self.neigh_id[id_part]
-            adjacents_coord = self.dat_xyz_init[adjacents, 1:3]
-            self.r_ij[jj] = adjacents_coord - x0y0
-
-            if jj == 1598:
-                print("adjacents = %s,  jj = %s"%(adjacents, jj))
-                print("r_ij = %s"%self.r_ij[jj])
-                for rij in self.r_ij[jj]:
-                    rx = rij[0]
-                    ry = rij[1]
-                    if
-
-
-
-
-
+                    x0 = self.dat_xyz_init[rid1, 1]
+                    y0 = self.dat_xyz_init[rid1, 2]
+                    z0 = self.dat_xyz_init[rid1, 3]
+                    x1 = self.dat_xyz_init[rid0, 1]
+                    y1 = self.dat_xyz_init[rid0, 2]
+                    z1 = self.dat_xyz_init[rid0, 3]
+                    x1, y1 = self.Consideration_Periodic_Boundary_Distance(x0, y0, x1, y1)
+                    self.r_ij[rid1].append([(x1 - x0), (y1 - y0), abs(z1 - z0)])
 
         return self.neigh_id, self.vor, self.region_mask
-    def Consideration_Periodic_Boundary_Distance(self, rx, ry):
+
+    def Consideration_Periodic_Boundary_Distance(self, x0, y0, x1, y1):
+
+        if(abs(x1 - x0) > self.xmax_init/2.2 and x1 < x0):
+            xi = x1 + self.xmax_init
+        elif(abs(x1 - x0) > self.xmax_init/2.2 and x1 > x0):
+            xi = x1 - self.xmax_init
+        else:
+            xi = x1
 
 
+        if(abs(y1 - y0) > self.ymax_init/2.2 and y1 < y0):
+            yi = y1 + self.ymax_init
+        elif(abs(y1 - y0) > self.ymax_init/2.2 and y1 > y0):
+            yi = y1 - self.ymax_init
+        else:
+            yi = y1
+        return xi, yi
 
     def Add_Points(self):
         # ========================== INFORMATION ===============================
@@ -312,13 +333,6 @@ class Snake(Structur):
         self.len_snakes = []
         snakes_info = []
 
-        box_data = self.st[1]
-        xmin      = box_data[0][0]
-        xmax     = box_data[0][1]
-        ymax        = box_data[1][1]
-        ymin    = box_data[1][0]
-
-
         jj_using_glob = np.zeros(self.nparts_init)
         for jj in range(self.nparts_init ):
             if jj_using_glob[jj] > 0: # skip the particle if it's in a snake
@@ -342,24 +356,22 @@ class Snake(Structur):
                 # distances between central partilce and her neighbors
                 for i in range(len(self.neigh_id[jj_el_snake])):
 
-                    if(abs(x1[i] - x0) > xmax/2 and x1[i] < x0):
-                        xi = x1[i] + xmax
-                    elif(abs(x1[i] - x0) > xmax/2 and x1[i] > x0):
-                        xi = x1[i] - xmax
+                    if(abs(x1[i] - x0) > self.xmax_init/2 and x1[i] < x0):
+                        xi = x1[i] + self.xmax_init
+                    elif(abs(x1[i] - x0) > self.xmax_init/2 and x1[i] > x0):
+                        xi = x1[i] - self.xmax_init
                     else:
                         xi = x1[i]
 
 
-                    if(abs(y1[i] - y0) > ymax/2 and y1[i] < y0):
-                        yi = y1[i] + ymax
-                    elif(abs(y1[i] - y0) > ymax/2 and y1[i] > y0):
-                        yi = y1[i] - ymax
+                    if(abs(y1[i] - y0) > self.ymax_init/2 and y1[i] < y0):
+                        yi = y1[i] + self.ymax_init
+                    elif(abs(y1[i] - y0) > self.ymax_init/2 and y1[i] > y0):
+                        yi = y1[i] - self.ymax_init
                     else:
                         yi = y1[i]
 
                     r_i = np.sqrt((xi - x0)*(xi - x0) + (yi - y0)*(yi - y0))
-
-                    self.r_ij[jj].append([(xi - x0), (yi - y0)])
 
                     if r_i < self.r_snake:
                         r.append([i, r_i])
@@ -400,18 +412,17 @@ class Snake(Structur):
                         #                                                          |
                 # distances between central partilce and her neighbors
                 for i in range(len(self.neigh_id[jj_el_snake])):
-                    if(abs(x1[i] - x0) > xmax/2 and x1[i] < x0):
-                        xi = x1[i] + xmax
-                    elif(abs(x1[i] - x0) > xmax/2 and x1[i] > x0):
-                        xi = x1[i] - xmax
+                    if(abs(x1[i] - x0) > self.xmax_init/2 and x1[i] < x0):
+                        xi = x1[i] + self.xmax_init
+                    elif(abs(x1[i] - x0) > self.xmax_init/2 and x1[i] > x0):
+                        xi = x1[i] - self.xmax_init
                     else:
                         xi = x1[i]
 
-
-                    if(abs(y1[i] - y0) > ymax/2 and y1[i] < y0):
-                        yi = y1[i] + ymax
-                    elif(abs(y1[i] - y0) > ymax/2 and y1[i] > y0):
-                        yi = y1[i] - ymax
+                    if(abs(y1[i] - y0) > self.ymax_init/2 and y1[i] < y0):
+                        yi = y1[i] + self.ymax_init
+                    elif(abs(y1[i] - y0) > self.ymax_init/2 and y1[i] > y0):
+                        yi = y1[i] - self.ymax_init
                     else:
                         yi = y1[i]
 
@@ -430,26 +441,134 @@ class Snake(Structur):
             self.snakes_id.append(jj_using) #add current snake to array of snakes' ID
             self.len_snakes.append(length) #add length of current snake to array of snakes' lengths
 
-
-        #checkOrder(snakes_id)
         del jj_using
-        del box_data
         del jj_using_glob
         del r
+
         return  self.snakes_id, self.len_snakes
 
     def Init_Parameter(self):
-        self.psi3 = np.zeros()
-        self.psi4 = None
-        self.psi5 = None
-        self.psi6 = None
-        self.psi7 = None
+        self.r_mas = []
+        self.psi = np.zeros((self.nparts_init, len(self.list_psi)))
+        self.z_distance = []#np.zeros(self.nparts_init)
+        self.dx_diff = [[] for _ in range(self.nparts_init)]
+        self.dy_diff = [[] for _ in range(self.nparts_init)]
+
 
     def Calc_Parameter(self):
-        for jj in [604]:#range(#self.nparts_init):
-            id_part = self.dat_xyz_init[jj]
+        psi_mas = [[] for _ in range(len(self.list_psi))]
+        rr_mas = []
+        z_h = []
+        for jj in [557]:#range(#self.nparts_init):
+
+            for rij in self.r_ij[jj]:
+                rr_mas.append((rij[0] ** 2 + rij[1] ** 2) ** 0.5)
+                z_h.append(rij[2])
 
 
+            for psi_i in range(len(self.list_psi)):
+                psi_k = self.list_psi[psi_i]
+                psi_mas[psi_i].append(self.Get_Psik_Single(np.array(self.r_ij[jj]), psi_k))
+
+                self.psi[jj, psi_i] += self.Get_Psik_Single(np.array(self.r_ij[jj]), psi_k)
+
+
+        print(self.list_psi)
+        print("PSI = %s"%self.psi[557, :])
+
+
+
+
+
+    def Particle_Dispacment_1_Timestep(self, dat_xyz_previusly):
+        # func to calc gist for diffusion
+        # INPUT:
+        # solid_part - массив твердых частиц (в этом коде он не соответвует индексам частиц)
+        # это массив номера строчек частиц
+
+        # массивы координат частиц общиме массивы без разделения на фазы
+        #          mas_part_dif0,              mas_part_dif_ts_1,                 mas_part_dif_ts
+        # начальный (нулевой) таймстеп        предыдущий таймстеп                текущий таймстеп
+        # x_left, x_right, y_up, y_bottom - размеры области моделирования
+
+
+        for i in range(self.nparts_init):
+            x0 = dat_xyz_previusly[i, 1]
+            y0 = dat_xyz_previusly[i, 2]
+
+            x1 = self.dat_xyz_init[i, 1]
+            y1 = self.dat_xyz_init[i, 2]
+
+            x1, y1 = self.Consideration_Periodic_Boundary_Distance(x0, y0, x1, y1)
+
+            self.dx_diff[i].append(x1 - x0)
+            self.dy_diff[i].append(y1 - y0)
+
+
+
+        x_box       = (x_right - x_left) / 2
+        y_box       = (y_up - y_bottom) / 2
+        y_up1       = 2 * y_box
+        x_r         = 2 * x_box
+
+        # pos1 - частица в твердой фазе (расчет твердой фазы происхолдит относительно начачльного массива частиц, где учитывалась только нумерация строчек)
+        # для вычислкения индекса частиц надо использовать вспомогательный массив
+        for pos1 in solid_part:                               # ind_part - номер частицы в исхожном массиве (строчка)
+            #print('pos1 = ', pos1, 'dat1[pos1] = ', dat1[pos1])
+            id1 = int(mas_part_dif_ts[pos1, 0])                    # нахожим индекс частицы (массив на данном тс аналогичен входному массиву в функции вороного, добавлена только столбец с ID частицами)
+            #print('id1 = ', id1,'mas_part_dif_ts[pos1==id1] = ', mas_part_dif_ts[pos1])
+            p2 = numpy.where(mas_part_dif_ts_1[:, 0] == id1)
+            pos2 = p2[0][0]
+            #pos2 = mas_part_dif_ts_1[:, 0].index(id1)         # номер строчки частицы с предыдущего таймстепа
+            #pos0 =  mas_part_dif0[:, 0].index(id1)            # позиция в исходном массиве (номер строчки)
+            # проверка на фазу частицы на предыдущем таймстепе:
+            if pos1 not in solid_part_ts_1:
+                rx[id1].append(brak)
+                ry[id1].append(brak)
+                continue
+            #print('pos1 = ', pos1, 'pos2 = ', pos2)
+            #x0, y0 =  mas_part_dif0[pos0, 1], mas_part_dif0[pos0, 2]
+            x, y, x_1, y_1 = mas_part_dif_ts[pos1, 1], mas_part_dif_ts[pos1, 2], mas_part_dif_ts_1[pos2, 1], mas_part_dif_ts_1[pos2, 2]
+            #print('x = ', mas_part_dif_ts[1, 1], '; x_1 = ',mas_part_dif_ts_1[1, 1])
+            if x - x_box < x_1 < x + x_box and y - y_box < y_1 < y + y_box:
+                rx[id1].append(x - x_1)
+                ry[id1].append(y - y_1)
+            elif y - y_box > y_1:
+                ry[id1].append(y - (y_1 + y_up1))
+                if x - x_box < x_1 < x + x_box:
+                    rx[id1].append(x - x_1)
+                elif x - x_box > x_1 :
+                    rx[id1].append(x - (x_1 + x_r))
+                elif x + x_box < x_1:
+                    rx[id1].append(x - (x_1 - x_r))
+            elif y + y_box < y_1:
+                ry[id1].append(y - (y_1 - y_up1))
+                if x - x_box < x_1 < x + x_box:
+                    rx[id1].append(x - x_1)
+                elif x - x_box > x_1 :
+                    rx[id1].append(x - (x_1 + x_r))
+                elif x + x_box < x_1:
+                    rx[id1].append(x - (x_1 - x_r))
+            elif y - y_box < y_1 < y + y_box:
+                ry[id1].append(y - y_1)
+                if x - x_box > x_1 :
+                    rx[id1].append(x - (x_1 + x_r))
+                elif x + x_box < x_1:
+                    rx[id1].append(x - (x_1 - x_r))
+
+            len_r = len(rx[id1]) - 1
+
+            rr = ((rx[id1][len_r])**2 + (ry[id1][len_r])**2 )**0.5
+            ind_gist = int(rr / dr_dif)
+            #print(ind_gist)
+            gist[ind_gist] += 1
+        for pos in range(npoints):
+            if pos in solid_part:
+                continue
+            else:
+                id1 = int(mas_part_dif_ts[pos, 0])
+                rx[id1].append(brak)
+                ry[id1].append(brak)
 
 
 
@@ -475,6 +594,10 @@ class Snake(Structur):
                     dump.display_info()
                     dump.OpenTrjGetInfo(1)
                     self.st = dump.ReadState()
+                    self.nparts_init = self.st[0]
+                    self.Init_Parameter()
+
+                    #structur_anal = Structur()
 
                     counter_for_skip = 0
                     for index in range(istart, all_cadr - 10, int((all_cadr - 1 ) / num_cadr)):
@@ -486,13 +609,12 @@ class Snake(Structur):
                         counter_for_skip += 1
                         print('counter_for_skip = ', counter_for_skip)
                         self.st = dump.ReadState()
-                        self.nparts_init = self.st[0]
+
                         self.dat_xyz_init = np.array(self.st[-1])
 
                         self.xmin_init, self.xmax_init = min(self.dat_xyz_init[:, 1]), max(self.dat_xyz_init[:, 1])
                         self.ymin_init, self.ymax_init = min(self.dat_xyz_init[:, 2]), max(self.dat_xyz_init[:, 2])
-
-                        #self.PlotSystem(index__1, x_part, y_part,  self.xmin_init, self.xmax_init, self.ymin_init, self.ymax_init, img_path)
+                        print("%f,    %f" %( self.xmin_init, self.xmax_init))
 
                         self.Add_Points()
 
@@ -513,8 +635,8 @@ class Snake(Structur):
                         #self.Plot_Voro_System(self.dat_xyz[:, 1:3], "VOR_Add", index__1)
                         self.IdentShake()
                         self.Plot_Snakes(self.dat_xyz_init[:, 1:3], "IdentWor", index__1)
-                        print("snake 0: ", end=" ")
-                        print(self.snakes_id[32])
+                        self.Calc_Parameter()
+
 
 
 
@@ -540,6 +662,7 @@ KingCobra = Snake(heights = [1],
                  Temperature = 1.,
                  percent = 0.1,
                  density = density,
+                 list_psi = [3, 4, 5, 6],
                  istart = istart,
                  all_cadr = all_cadr,
                  num_cadr = num_cadr,
