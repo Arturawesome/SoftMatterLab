@@ -68,6 +68,18 @@ class SyatemStructur:
 
         return math.radians(angle)
 
+    def Angle_Of_Vectors(self, vector1, vector2):
+        unit_vector_1 = vector1 / np.linalg.norm(vector1)
+        unit_vector_2 = vector2 / np.linalg.norm(vector2)
+
+        dot_product = np.dot(unit_vector_1, unit_vector_2)
+        angle = np.arccos(dot_product)
+        return math.degrees(angle)
+
+    # def Angle_Of_Vectors(self, x0, y0, x1, y1):
+    #     angle = pygame.math.Vector2(x0, y0).angle_to((x1, y1))
+    #     return angle #math.radians(angle)
+
 
     def Get_Psik_Single(self, r_ij: np.ndarray, k:int):#x0y0: np.ndarray, xy_neighs: np.ndarray, k:int):
         # x0y0 - [x0, y0]; xy_neighs = [[x1, y1], [x2, y2] ...]
@@ -83,9 +95,16 @@ class SyatemStructur:
         psik /= len(r_ij)
         psik = abs(psik)
         return psik
+    def Plot_PCF(self, Gr, r_gr, img_path):
+        ff=plt.figure(figsize=(10, 10))
+        ax = plt.subplot(111)
+        ax.plot(r_gr, Gr, "-")
+        plt.savefig(img_path + 'PCF_2D.pdf', bbox_inches='tight')#,pad_inches = 0)    #mh1
+        ff.clear()
+        plt.close(ff)
 
 
-    def PCF_2D(self,  rMax, dr):
+    def PCF_2D(self, rMax, dr):
         self.Coord_Transform()
 
         # Find particles which are close enough to the box center that a circle of radius
@@ -129,81 +148,6 @@ class SyatemStructur:
 
         return g_average, radii
 
-
-    def Particle_Dispacment_1_Timestep(rx, ry, gist, dr_dif, mas_part_dif_ts_1, mas_part_dif_ts, x_left, x_right, y_up, y_bottom, solid_part, solid_part_ts_1, brak, dat1, npoints):
-        # func to calc gist for diffusion
-        # INPUT:
-        # solid_part - массив твердых частиц (в этом коде он не соответвует индексам частиц)
-        # это массив номера строчек частиц
-
-        # массивы координат частиц общиме массивы без разделения на фазы
-        #          mas_part_dif0,              mas_part_dif_ts_1,                 mas_part_dif_ts
-        # начальный (нулевой) таймстеп        предыдущий таймстеп                текущий таймстеп
-        # x_left, x_right, y_up, y_bottom - размеры области моделирования
-
-        x_box       = (x_right - x_left) / 2
-        y_box       = (y_up - y_bottom) / 2
-        y_up1       = 2 * y_box
-        x_r         = 2 * x_box
-
-        # pos1 - частица в твердой фазе (расчет твердой фазы происхолдит относительно начачльного массива частиц, где учитывалась только нумерация строчек)
-        # для вычислкения индекса частиц надо использовать вспомогательный массив
-        for pos1 in solid_part:                               # ind_part - номер частицы в исхожном массиве (строчка)
-            #print('pos1 = ', pos1, 'dat1[pos1] = ', dat1[pos1])
-            id1 = int(mas_part_dif_ts[pos1, 0])                    # нахожим индекс частицы (массив на данном тс аналогичен входному массиву в функции вороного, добавлена только столбец с ID частицами)
-            #print('id1 = ', id1,'mas_part_dif_ts[pos1==id1] = ', mas_part_dif_ts[pos1])
-            p2 = numpy.where(mas_part_dif_ts_1[:, 0] == id1)
-            pos2 = p2[0][0]
-            #pos2 = mas_part_dif_ts_1[:, 0].index(id1)         # номер строчки частицы с предыдущего таймстепа
-            #pos0 =  mas_part_dif0[:, 0].index(id1)            # позиция в исходном массиве (номер строчки)
-            # проверка на фазу частицы на предыдущем таймстепе:
-            if pos1 not in solid_part_ts_1:
-                rx[id1].append(brak)
-                ry[id1].append(brak)
-                continue
-            #print('pos1 = ', pos1, 'pos2 = ', pos2)
-            #x0, y0 =  mas_part_dif0[pos0, 1], mas_part_dif0[pos0, 2]
-            x, y, x_1, y_1 = mas_part_dif_ts[pos1, 1], mas_part_dif_ts[pos1, 2], mas_part_dif_ts_1[pos2, 1], mas_part_dif_ts_1[pos2, 2]
-            #print('x = ', mas_part_dif_ts[1, 1], '; x_1 = ',mas_part_dif_ts_1[1, 1])
-            if x - x_box < x_1 < x + x_box and y - y_box < y_1 < y + y_box:
-                rx[id1].append(x - x_1)
-                ry[id1].append(y - y_1)
-            elif y - y_box > y_1:
-                ry[id1].append(y - (y_1 + y_up1))
-                if x - x_box < x_1 < x + x_box:
-                    rx[id1].append(x - x_1)
-                elif x - x_box > x_1 :
-                    rx[id1].append(x - (x_1 + x_r))
-                elif x + x_box < x_1:
-                    rx[id1].append(x - (x_1 - x_r))
-            elif y + y_box < y_1:
-                ry[id1].append(y - (y_1 - y_up1))
-                if x - x_box < x_1 < x + x_box:
-                    rx[id1].append(x - x_1)
-                elif x - x_box > x_1 :
-                    rx[id1].append(x - (x_1 + x_r))
-                elif x + x_box < x_1:
-                    rx[id1].append(x - (x_1 - x_r))
-            elif y - y_box < y_1 < y + y_box:
-                ry[id1].append(y - y_1)
-                if x - x_box > x_1 :
-                    rx[id1].append(x - (x_1 + x_r))
-                elif x + x_box < x_1:
-                    rx[id1].append(x - (x_1 - x_r))
-
-            len_r = len(rx[id1]) - 1
-
-            rr = ((rx[id1][len_r])**2 + (ry[id1][len_r])**2 )**0.5
-            ind_gist = int(rr / dr_dif)
-            #print(ind_gist)
-            gist[ind_gist] += 1
-        for pos in range(npoints):
-            if pos in solid_part:
-                continue
-            else:
-                id1 = int(mas_part_dif_ts[pos, 0])
-                rx[id1].append(brak)
-                ry[id1].append(brak)
 
 
             # вставить остальные гран условия
